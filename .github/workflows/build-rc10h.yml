@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/build-rc10h.yml'
+      - 'RC10H_TRIGGER'
 
 permissions:
   contents: write
