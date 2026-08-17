@@ -1,0 +1,139 @@
+name: Build RC10H
+
+on:
+  push:
+    paths:
+      - '.github/workflows/build-rc10h.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build RC10H from golden RC10
+        shell: python
+        run: |
+          import re
+          from pathlib import Path
+
+          src = Path('FRED_RC10_ORIGINAL_ICON.user.js').read_text()
+          m = re.search(r"const ICON_MASK='([^']+)'", src)
+          if not m:
+              raise SystemExit('ICON_MASK not found in golden RC10')
+          mask = m.group(1)
+
+          out = r'''// ==UserScript==
+// @name Sentinel Mobile — FRED RC10H Real Shield Severity
+// @namespace Sentinel
+// @version 1.0.0-rc10h
+// @description Real Sentinel shield; right-edge drag persistence; blue/yellow/red severity test
+// @match https://www.torn.com/*
+// @grant none
+// ==/UserScript==
+(function(){
+'use strict';
+const ICON_MASK=__MASK__;
+const KEY='fred_rc10h_top';
+const COLORS=[
+  {name:'BLUE',hex:'#52a2ff'},
+  {name:'YELLOW',hex:'#ffe23b'},
+  {name:'RED',hex:'#ff3030'}
+];
+let idx=0;
+function boot(msg){
+  let e=document.getElementById('fred-boot-trace');
+  if(!e){
+    e=document.createElement('div');
+    e.id='fred-boot-trace';
+    e.style.cssText='position:fixed;right:12px;bottom:90px;z-index:2147483647;background:#171b22;color:#fff;border:1px solid #4d5968;border-radius:8px;padding:10px 14px;font:700 14px -apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif';
+    document.body.appendChild(e);
+  }
+  e.textContent=msg;
+}
+function init(){
+  document.getElementById('fred-rc10h-root')?.remove();
+  document.getElementById('fred-rc10h-style')?.remove();
+  const style=document.createElement('style');
+  style.id='fred-rc10h-style';
+  style.textContent=`
+    #fred-rc10h-root{position:fixed;right:7px;top:48%;z-index:2147483647;touch-action:none;user-select:none;-webkit-user-select:none}
+    #fred-rc10h-launcher{width:36px;height:36px;border:0;padding:0;background:rgba(8,10,13,.86);border-radius:9px;box-shadow:0 2px 12px rgba(0,0,0,.52);display:flex;align-items:center;justify-content:center;cursor:pointer;touch-action:none}
+    #fred-rc10h-shield{width:29px;height:29px;background:#52a2ff;-webkit-mask:url("${ICON_MASK}") center/contain no-repeat;mask:url("${ICON_MASK}") center/contain no-repeat;filter:drop-shadow(0 0 4px #52a2ff)}
+  `;
+  document.head.appendChild(style);
+
+  const root=document.createElement('div');
+  root.id='fred-rc10h-root';
+  const saved=parseFloat(localStorage.getItem(KEY));
+  if(Number.isFinite(saved)) root.style.top=Math.min(90,Math.max(8,saved))+'%';
+  root.innerHTML='<button id="fred-rc10h-launcher" aria-label="Sentinel severity test"><span id="fred-rc10h-shield"></span></button>';
+  document.body.appendChild(root);
+
+  const btn=root.querySelector('#fred-rc10h-launcher');
+  const shield=root.querySelector('#fred-rc10h-shield');
+  function paint(){
+    const c=COLORS[idx];
+    shield.style.background=c.hex;
+    shield.style.filter=`drop-shadow(0 0 4px ${c.hex})`;
+    boot(`FRED RC10H • ${c.name} ${c.hex} • drag vertically / tap to cycle`);
+  }
+
+  let startY=0,startTop=0,moved=false,active=false;
+  btn.addEventListener('pointerdown',e=>{
+    active=true;moved=false;startY=e.clientY;startTop=root.getBoundingClientRect().top;
+    try{btn.setPointerCapture(e.pointerId)}catch(_e){}
+  });
+  btn.addEventListener('pointermove',e=>{
+    if(!active)return;
+    const dy=e.clientY-startY;
+    if(Math.abs(dy)>4)moved=true;
+    if(!moved)return;
+    const max=window.innerHeight-root.offsetHeight-8;
+    root.style.top=Math.max(8,Math.min(max,startTop+dy))+'px';
+  });
+  btn.addEventListener('pointerup',e=>{
+    if(!active)return;
+    active=false;
+    if(moved){
+      const pct=(root.getBoundingClientRect().top/window.innerHeight)*100;
+      root.style.top=pct+'%';
+      localStorage.setItem(KEY,String(pct));
+      boot(`FRED RC10H • POSITION SAVED ${pct.toFixed(1)}%`);
+    }else{
+      idx=(idx+1)%COLORS.length;
+      paint();
+    }
+    try{btn.releasePointerCapture(e.pointerId)}catch(_e){}
+  });
+  btn.addEventListener('pointercancel',()=>{active=false});
+  paint();
+}
+function start(){
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true});
+  else init();
+}
+if(document.body) start();
+else document.addEventListener('DOMContentLoaded',start,{once:true});
+})();
+'''
+          out = out.replace('__MASK__', repr(mask))
+          Path('FRED_RC10H_REAL_SHIELD_SEVERITY.user.js').write_text(out)
+
+      - name: Commit RC10H
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add FRED_RC10H_REAL_SHIELD_SEVERITY.user.js
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Build RC10H real shield severity test"
+          git push
