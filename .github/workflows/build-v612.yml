@@ -19,21 +19,16 @@ jobs:
           out=out.replace('Sentinel Mobile — FRED V6.11 Nugget Transparent Asset','Sentinel Mobile — FRED V6.12 Horizontal Snap')
           out=out.replace('0.6.11-nugget-transparent-asset','0.6.12-horizontal-snap')
           out=out.replace("const ID='fred-v611', POS='fred.v611.y', MODE='fred.v611.mode';", "const ID='fred-v612', POS='fred.v612.y', MODE='fred.v612.mode', SIDE='fred.v612.side';")
-          old="""  l.style.top=y(parseFloat(localStorage.getItem(POS))||vp().h*.54)+'px';
-  resize();setMode(d);
-  l.onpointerdown=e=>{e.preventDefault();drag={id:e.pointerId,sy:e.clientY,st:parseFloat(l.style.top),m:false};l.setPointerCapture?.(e.pointerId)};
-  l.onpointermove=e=>{if(!drag||drag.id!==e.pointerId)return;let dy=e.clientY-drag.sy;if(Math.abs(dy)>5)drag.m=true;l.style.top=y(drag.st+dy)+'px'};
-  l.onpointerup=e=>{if(!drag)return;let m=drag.m;drag=null;localStorage.setItem(POS,parseFloat(l.style.top));if(!m){d.classList.add('open');l.style.visibility='hidden'}};"""
-          new="""  l.style.top=y(parseFloat(localStorage.getItem(POS))||vp().h*.54)+'px';
-  const applySide=side=>{side=side==='left'?'left':'right';if(side==='left'){l.style.left='7px';l.style.right='auto'}else{l.style.right='7px';l.style.left='auto'}localStorage.setItem(SIDE,side)};
+          marker="  d.querySelector('.close').onclick=()=>{d.classList.remove('open');l.style.visibility='visible'};"
+          inject="""  const applySide=side=>{side=side==='left'?'left':'right';if(side==='left'){l.style.left='7px';l.style.right='auto'}else{l.style.right='7px';l.style.left='auto'}localStorage.setItem(SIDE,side)};
   applySide(localStorage.getItem(SIDE)||'right');
-  resize();setMode(d);
   l.onpointerdown=e=>{e.preventDefault();const r=l.getBoundingClientRect();drag={id:e.pointerId,sx:e.clientX,sy:e.clientY,sl:r.left,st:parseFloat(l.style.top),m:false};l.style.left=r.left+'px';l.style.right='auto';l.setPointerCapture?.(e.pointerId)};
   l.onpointermove=e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.sx,dy=e.clientY-drag.sy;if(Math.hypot(dx,dy)>5)drag.m=true;const maxX=Math.max(7,vp().w-l.offsetWidth-7);l.style.left=Math.max(7,Math.min(maxX,drag.sl+dx))+'px';l.style.top=y(drag.st+dy)+'px'};
-  l.onpointerup=e=>{if(!drag)return;const m=drag.m;drag=null;localStorage.setItem(POS,parseFloat(l.style.top));if(m){const r=l.getBoundingClientRect();applySide((r.left+r.width/2)<vp().w/2?'left':'right')}else{applySide(localStorage.getItem(SIDE)||'right');d.classList.add('open');l.style.visibility='hidden'}};"""
-          if old not in out:
-              raise SystemExit('Expected V6.11 launcher pointer block not found')
-          out=out.replace(old,new)
+  l.onpointerup=e=>{if(!drag)return;const m=drag.m;drag=null;localStorage.setItem(POS,parseFloat(l.style.top));if(m){const r=l.getBoundingClientRect();applySide((r.left+r.width/2)<vp().w/2?'left':'right')}else{applySide(localStorage.getItem(SIDE)||'right');d.classList.add('open');l.style.visibility='hidden'}};
+"""
+          if marker not in out:
+              raise SystemExit('close-handler marker missing')
+          out=out.replace(marker,inject+marker,1)
           Path('FRED_V6_12_HORIZONTAL_SNAP.user.js').write_text(out)
       - name: Commit generated test
         run: |
@@ -42,4 +37,4 @@ jobs:
           git add FRED_V6_12_HORIZONTAL_SNAP.user.js
           git commit -m 'Build FRED V6.12 horizontal snap test' || exit 0
           git push
-# trigger
+# robust-trigger
