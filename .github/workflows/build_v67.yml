@@ -1,0 +1,56 @@
+name: Build FRED V6.7
+on:
+  push:
+    paths:
+      - '.github/workflows/build_v67.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build V6.7 from exact V6.6
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          src = Path('FRED_V6_6_NUGS_CLOSE.user.js')
+          dst = Path('FRED_V6_7_NUGS_POSITION_CLEANUP.user.js')
+          s = src.read_text()
+
+          # Version identifiers only.
+          s = s.replace('Sentinel Mobile — FRED V6.6 Nugs Close Test',
+                        'Sentinel Mobile — FRED V6.7 Nugs Position Cleanup')
+          s = s.replace('0.6.6-nugs-close', '0.6.7-nugs-position-cleanup')
+          s = s.replace("const ID='fred-v66', POS='fred.v66.y', MODE='fred.v66.mode';",
+                        "const ID='fred-v67', POS='fred.v67.y', MODE='fred.v67.mode';")
+
+          # Approved visual change #1: move Nugs from 45% to 65% viewport height.
+          old = 'top:45%'
+          if old not in s:
+              raise SystemExit('Expected Nugs top:45% anchor not found')
+          s = s.replace(old, 'top:65%', 1)
+
+          # Approved visual change #2: explicitly suppress the whole fixed close
+          # control when drawer is not open to prevent WebKit ghost paint.
+          css_start = s.find('const css=`')
+          if css_start < 0:
+              raise SystemExit('CSS template not found')
+          css_end = s.find('`;', css_start)
+          if css_end < 0:
+              raise SystemExit('CSS template end not found')
+          cleanup = "\n#${ID} .fd:not(.open) .close{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}\n#${ID} .fd.open .close{visibility:visible!important;opacity:1!important;pointer-events:auto!important}\n"
+          s = s[:css_end] + cleanup + s[css_end:]
+
+          dst.write_text(s)
+          print(f'Built {dst} ({dst.stat().st_size} bytes)')
+          PY
+      - name: Commit V6.7
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add FRED_V6_7_NUGS_POSITION_CLEANUP.user.js
+          git commit -m 'Build FRED V6.7 Nugs position cleanup'
+          git push
