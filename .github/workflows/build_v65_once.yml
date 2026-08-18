@@ -1,0 +1,58 @@
+name: Build FRED V6.5 once
+
+on:
+  push:
+    paths:
+      - 'V65_TRIGGER'
+
+permissions:
+  contents: write
+
+jobs:
+  build-v65:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build V6.5 from exact V6.4 baseline
+        shell: python
+        run: |
+          import re
+          from pathlib import Path
+
+          base = Path('FRED_V6_4_LAUNCHER_ONLY.user.js').read_text()
+          rc10h = Path('FRED_RC10H_REAL_SHIELD_SEVERITY.user.js').read_text()
+
+          m = re.search(r"const ICON_MASK='([^']+)'", rc10h)
+          if not m:
+              raise SystemExit('ICON_MASK not found in RC10H')
+          mask = m.group(1)
+
+          out = base
+          out = out.replace('Sentinel Mobile — FRED V6.4 Launcher Restore', 'Sentinel Mobile — FRED V6.5 Mask Launcher')
+          out = out.replace('0.6.4-launcher-only', '0.6.5-mask-launcher')
+          out = out.replace('V6.2 shell preserved; launcher visual corrected only.', 'V6.4 shell preserved exactly; launcher raster replaced by proven RC10H mask only.')
+          out = out.replace("const ID='fred-v64b', POS='fred.v64b.y', MODE='fred.v64b.mode';", "const ID='fred-v65', POS='fred.v65.y', MODE='fred.v65.mode';")
+
+          out, n1 = re.subn(r"const LAUNCHER='data:image/webp;base64,[^']+';", "const ICON_MASK='" + mask + "';", out, count=1)
+          if n1 != 1:
+              raise SystemExit(f'launcher constant replacement count={n1}')
+
+          old = '#${ID} .fl{position:fixed;right:7px;width:55px;height:55px;border:0;border-radius:13px;background:transparent url("${LAUNCHER}") center/cover no-repeat;box-shadow:0 4px 15px #000;pointer-events:auto;touch-action:none}'
+          new = '#${ID} .fl{position:fixed;right:7px;width:55px;height:55px;border:0;border-radius:13px;background:rgba(8,10,13,.88);box-shadow:0 4px 15px #000;pointer-events:auto;touch-action:none;display:grid;place-items:center;padding:0}\n#${ID} .fl::before{content:\'\';display:block;width:47px;height:47px;background:#52a2ff;-webkit-mask:url("${ICON_MASK}") center/contain no-repeat;mask:url("${ICON_MASK}") center/contain no-repeat;filter:drop-shadow(0 0 4px #2f82ff)}'
+          if old not in out:
+              raise SystemExit('exact V6.4 launcher CSS line not found')
+          out = out.replace(old, new, 1)
+
+          Path('FRED_V6_5_MASK_LAUNCHER.user.js').write_text(out)
+          print('V6.5 bytes:', len(out.encode()))
+          print('WORDMARK occurrences:', out.count('const WORDMARK='))
+          print('ICON_MASK occurrences:', out.count('const ICON_MASK='))
+          print('LAUNCHER occurrences:', out.count('const LAUNCHER='))
+
+      - name: Commit V6.5
+        run: |
+          git config user.name 'Sentinel Builder'
+          git config user.email 'sentinel-builder@users.noreply.github.com'
+          git add FRED_V6_5_MASK_LAUNCHER.user.js
+          git commit -m 'Build FRED V6.5 mask launcher from V6.4' || exit 0
+          git push
