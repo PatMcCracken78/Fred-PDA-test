@@ -1,0 +1,33 @@
+name: Build FRED V6.8
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/build-v68.yml']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build from exact V6.7
+        shell: python
+        run: |
+          from pathlib import Path
+          src=Path('FRED_V6_7_NUGS_POSITION_CLEANUP.user.js').read_text()
+          out=src
+          out=out.replace('FRED V6.7 Nugs Position Cleanup','FRED V6.8 Final Nugs Sign-Off Position Test')
+          out=out.replace('0.6.7-nugs-position-cleanup','0.6.8-final-nugs-position')
+          out=out.replace("const ID='fred-v67', POS='fred.v67.y', MODE='fred.v67.mode';", "const ID='fred-v68', POS='fred.v68.y', MODE='fred.v68.mode';")
+          # Anchor Nugs to the NEXT OC card instead of viewport percentage.
+          out=out.replace("#${ID} .close{position:fixed;right:0;top:65%;transform:translateY(-50%);", "#${ID} .close{position:absolute;right:12px;top:auto;bottom:126px;transform:none;")
+          # Make close control itself visually transparent; only Nugs artwork is visible.
+          out=out.replace("background:linear-gradient(#20282e,#10151a);", "background:transparent;")
+          Path('FRED_V6_8_FINAL_NUGS_POSITION.user.js').write_text(out)
+      - name: Commit generated test
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add FRED_V6_8_FINAL_NUGS_POSITION.user.js
+          git commit -m 'Build FRED V6.8 final Nugs sign-off position test' || exit 0
+          git push
