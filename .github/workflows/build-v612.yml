@@ -42,3 +42,4 @@ jobs:
           git add FRED_V6_12_HORIZONTAL_SNAP.user.js
           git commit -m 'Build FRED V6.12 horizontal snap test' || exit 0
           git push
+# trigger
