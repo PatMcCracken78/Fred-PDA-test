@@ -1,0 +1,41 @@
+name: Build FRED V6.9
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/build-v69.yml']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build from exact V6.8
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          src=Path('FRED_V6_8_FINAL_NUGS_POSITION.user.js').read_text()
+          out=src
+          out=out.replace('FRED V6.8 Final Nugs Sign-Off Position Test','FRED V6.9 Nugs Wrapper Cleanup')
+          out=out.replace('0.6.8-final-nugs-position','0.6.9-nugs-wrapper-cleanup')
+          out=out.replace("const ID='fred-v68', POS='fred.v68.y', MODE='fred.v68.mode';", "const ID='fred-v69', POS='fred.v69.y', MODE='fred.v69.mode';")
+          pattern=r"#\$\{ID\} \.close\{[^}]*\}"
+          replacement="#${ID} .close{position:absolute;right:12px;top:auto;bottom:126px;transform:none;width:76px;height:76px;border:0!important;border-radius:0!important;background:none!important;box-shadow:none!important;filter:none!important;-webkit-filter:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;outline:0!important;padding:0!important;margin:0!important;color:transparent!important;display:grid;place-items:center;z-index:3;appearance:none!important;-webkit-appearance:none!important;overflow:visible;opacity:1;}"
+          out,n=re.subn(pattern,replacement,out,count=1)
+          if n!=1:
+              raise SystemExit(f'close wrapper block replacements: {n}')
+          # Force the entire wrapper away whenever the drawer is not open.
+          marker="#${ID} .quiet .extra,#${ID} .quiet .next{display:none}"
+          if marker in out:
+              out=out.replace(marker, marker+"\n#${ID} .fd:not(.open) .close{display:none!important;visibility:hidden!important;opacity:0!important;box-shadow:none!important;background:none!important}")
+          else:
+              out += "\n#${ID} .fd:not(.open) .close{display:none!important;visibility:hidden!important;opacity:0!important;box-shadow:none!important;background:none!important}\n"
+          Path('FRED_V6_9_NUGS_WRAPPER_CLEANUP.user.js').write_text(out)
+      - name: Commit generated test
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add FRED_V6_9_NUGS_WRAPPER_CLEANUP.user.js
+          git commit -m 'Build FRED V6.9 Nugs wrapper cleanup' || exit 0
+          git push
