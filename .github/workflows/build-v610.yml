@@ -1,0 +1,30 @@
+name: Build FRED V6.10
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/build-v610.yml']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build from exact V6.9
+        shell: python
+        run: |
+          from pathlib import Path
+          src=Path('FRED_V6_9_NUGS_WRAPPER_CLEANUP.user.js').read_text()
+          out=src
+          out=out.replace('FRED V6.9 Nugs Wrapper Cleanup','FRED V6.10 Nugs Production Asset')
+          out=out.replace('0.6.9-nugs-wrapper-cleanup','0.6.10-nugs-production-asset')
+          out=out.replace("const ID='fred-v69', POS='fred.v69.y', MODE='fred.v69.mode';", "const ID='fred-v610', POS='fred.v610.y', MODE='fred.v610.mode';")
+          out=out.replace('https://raw.githubusercontent.com/PatMcCracken78/Fred-PDA-test/main/assets/C20BF5FF-D3A4-4F30-BCAD-F297FD6761CD.png','https://raw.githubusercontent.com/PatMcCracken78/Fred-PDA-test/main/assets/Nugs-Sign-off.png')
+          Path('FRED_V6_10_NUGS_PRODUCTION_ASSET.user.js').write_text(out)
+      - name: Commit generated test
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add FRED_V6_10_NUGS_PRODUCTION_ASSET.user.js
+          git commit -m 'Build FRED V6.10 with production Nugs asset' || exit 0
+          git push
