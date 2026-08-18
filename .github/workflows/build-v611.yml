@@ -1,0 +1,30 @@
+name: Build FRED V6.11
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/build-v611.yml']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build V6.11 from V6.10
+        shell: python
+        run: |
+          from pathlib import Path
+          src=Path('FRED_V6_10_NUGS_PRODUCTION_ASSET.user.js').read_text()
+          out=src
+          out=out.replace('FRED V6.10 Nugs Production Asset','FRED V6.11 Nugget Transparent Asset')
+          out=out.replace('0.6.10-nugs-production-asset','0.6.11-nugget-transparent-asset')
+          out=out.replace("const ID='fred-v610', POS='fred.v610.y', MODE='fred.v610.mode';", "const ID='fred-v611', POS='fred.v611.y', MODE='fred.v611.mode';")
+          out=out.replace('assets/Nugs-Sign-off.png','assets/Nugget-sign-off.png')
+          Path('FRED_V6_11_NUGGET_TRANSPARENT_ASSET.user.js').write_text(out)
+      - name: Commit generated test
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add FRED_V6_11_NUGGET_TRANSPARENT_ASSET.user.js
+          git commit -m 'Build FRED V6.11 Nugget transparent asset test' || exit 0
+          git push
